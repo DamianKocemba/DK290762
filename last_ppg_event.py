@@ -8,7 +8,7 @@ path = "C:/Python_proj/dane/"
 result_path = path+"wyniki/"
 file = "BUBD.shp"
 
-" ---------- FUNKCJE ----------- "
+" ---------- FUNKCJE ---------- "
 "1"
 def segment_length(col_x, col_y, value1, value2):
     "col_x, col_y - kolumny z wartosciami X i Y, value1=1 dla dlugosci segmentu 'przed', value1=-1 dla segmentu 'po'"
