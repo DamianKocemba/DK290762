@@ -2,12 +2,20 @@ import arcpy
 import numpy as np
 import pandas as pd
 
+arcpy.env.overwriteOutput=1
+arcpy.env.workspace = r"C:/Python_proj/dane/"
+path = "C:/Python_proj/dane/"
+result_path = path+"wyniki/"
+file = "BUBD.shp"
+
+" ---------- FUNKCJE ---------- "
+"1"
 def segment_length(col_x, col_y, value1, value2):
     "col_x, col_y - kolumny z wartosciami X i Y, value1=1 dla dlugosci segmentu 'przed', value1=-1 dla segmentu 'po'"
     "col_x i col_y to kolumny DataFrame"
     length = np.sqrt((col_x.shift(value1) - col_x.shift(value2))**2 + (col_y.shift(value1) - col_y.shift(value2))**2)
     return length
-
+"2"
 def vertex_angle(col_x, col_y):
     "col_x i col_y to kolumny DataFrame"
     "obliczenie katow z roznicy azymutow"
@@ -25,8 +33,7 @@ def vertex_angle(col_x, col_y):
     angle = dir2 - dir1
     angle = angle.where(angle > 0, angle + 360)
     return angle
-
-
+"3"
 def is_node(budynki):
     "budynki - plik poligonow - oryginalny BUBD.shp"
     wierzcholki = result_path + "wierzcholki.shp"
@@ -45,53 +52,65 @@ def is_node(budynki):
                 # print coord1[0], coord2[0], " - wierzcholki sasiedztwa"
                 neighbour_vertex.append(coord1[0])
     return len(neighbour_vertex)
-
 #all_vert = is_node(path+file)
 #print(all_vert)
 # wyszlo 9726 wierzcholkow sasiedztwa
-
-def minimal_geometry(in_featre, name):
-    "dane wejsciowe: in_feature - budynek w .shp, name: nazwa budynku (identyfikator)"
-    min_geom = {}
-    "minimalna otoczka - RECTANGLE BY AREA"
-    rectangle_by_area = result_path+name+'_RecByArea.shp'
-    arcpy.MinimumBoundingGeometry_management(in_featre, rectangle_by_area, "RECTANGLE_BY_AREA", "ALL")
-    min_geom["RectangleByArea"] = rectangle_by_area
-
-    "minimalna otoczka - RECTANGLE BY WIDTH"
-    rectangle_by_width = result_path+name+'_RecByWidth.shp'
-    arcpy.MinimumBoundingGeometry_management(in_featre, rectangle_by_width, "RECTANGLE_BY_WIDTH", "ALL")
-    min_geom["RectangleByWidth"] = rectangle_by_width
-
-    "minimalna otoczka - CONVEX HULL"
-    convex_hull = result_path+name+'_ConvHull.shp'
-    arcpy.MinimumBoundingGeometry_management(in_featre, convex_hull, "CONVEX_HULL", "ALL")
-    min_geom["ConvexHull"] = convex_hull
-
-    "minimalna otoczka - CRCLE"
-    circle = result_path+name+'_Circle.shp'
-    arcpy.MinimumBoundingGeometry_management(in_featre, circle, "CIRCLE", "ALL")
-    min_geom["Circle"] = circle
-
-    "minimalna otoczka - ENVELOPE"
-    envelope = result_path+name+'_Envelope.shp'
-    arcpy.MinimumBoundingGeometry_management(in_featre, envelope, "ENVELOPE", "ALL")
-    min_geom["Envelope"] = envelope
-    return min_geom
-
-def deflection(vertices_class, polygon_class):
-    "zamiana  MBG na linie"
-    arcpy.PolygonToLine_management(polygon_class, "line.shp")
+"4"
+def deflection(vertices_class, mbg):
     "odleglosc do linii"
-    arcpy.Near_analysis(vertices_class, "line.shp")
+    arcpy.Near_analysis(vertices_class, mbg)
     "wybranie kolumny z odlegloscia i zapisanie jej do obiektu Series"
     cursor = arcpy.da.SearchCursor(vertices_class, ["NEAR_DIST"])
     list = [row[0] for row in cursor]
     del row, cursor
     distance = pd.Series(list)
-    arcpy.Delete_management("line.shp")
     return distance
+"5"
+def intersect(data_path):
+    cursor = arcpy.da.SearchCursor(data_path, "TYPE")
+    lst = [row for row in cursor]
+    lista = []
+    for l in lst:
+        for l2 in lst:
+            lista.append("{0}_{1}".format(l[0], l2[0]))
+    id = pd.Series(lista)
 
+    elements = arcpy.CopyFeatures_management(data_path, arcpy.Geometry())
+    DE_9IM = {}
+    DE_9IM["ID"] = id
+    Contains = [element1.contains(element2) for element1 in elements for element2 in elements]
+    DE_9IM["contains"] = pd.Series(Contains)
+    Crosses = [element1.crosses(element2) for element1 in elements for element2 in elements]
+    DE_9IM["crosses"] = pd.Series(Crosses)
+    Disjoint = [element1.disjoint(element2) for element1 in elements for element2 in elements]
+    DE_9IM["disjoint"] = pd.Series(Disjoint)
+    Equals = [element1.equals(element2) for element1 in elements for element2 in elements]
+    DE_9IM["equals"] = pd.Series(Equals)
+    Overlaps = [element1.overlaps(element2) for element1 in elements for element2 in elements]
+    DE_9IM["overlaps"] = pd.Series(Overlaps)
+    Touches = [element1.touches(element2) for element1 in elements for element2 in elements]
+    DE_9IM["touches"] = pd.Series(Touches)
+    Within = [element1.within(element2) for element1 in elements for element2 in elements]
+    DE_9IM["within"] = pd.Series(Within)
+
+    IntersectMatrix = pd.DataFrame(DE_9IM)
+    print("Wynik z macierzy intersekcji")
+    print IntersectMatrix
+
+"sprawdzenie (na danych testowych), czy funkcja dziala poprawnie"
+#intersect("C:\Python_proj\dane\Dane.mdb\Test\polygon")
+"6"
+def minimal_geometry(in_feature):
+    "dane wejsciowe: in_feature - budynek w .shp"
+    MBG_list = ["RECTANGLE_BY_AREA", "RECTANGLE_BY_WIDTH", "CONVEX_HULL", "CIRCLE","ENVELOPE"]
+    for mbg in MBG_list:
+        arcpy.MinimumBoundingGeometry_management(in_feature, result_path+mbg+".shp", mbg)
+        "zamiana na linie"
+        arcpy.PolygonToLine_management(result_path+mbg+".shp", result_path+'{0}_line.shp'.format(mbg), "IGNORE_NEIGHBORS")
+        "usuniecie niepotrzebnej juz warstwy"
+        arcpy.Delete_management(result_path+mbg+".shp")
+
+" -------------------- FUNKCJE POMOCNICZE (JAKO CZESC ZADANIA EGZAMINACYJNEGO)-------------------- "
 "funkcja wybierajaca dany budynek z pliku BUBD.shp"
 def select(table, value):
     "table - oryginalny BUBD.shp, value - identyfikator gmlId"
@@ -115,29 +134,31 @@ def length_in_out_angle(results):
     "jako wynik powstaje DataFrame wzbogacony o dodatkowe kolumny"
     return results
 
-arcpy.env.overwriteOutput=1
-arcpy.env.workspace = r"C:/Python_proj/dane2/"
-path = "C:/Python_proj/dane2/"
-result_path = path+"wyniki/"
-file = "BUBD.shp"
-
-" ---------- WYBOR BUDYNKU ---------- "
+" -------------------- LISTA BUDYNKOW -------------------- "
 "lista z gmlId budynku"
+"lista z wybranymi budynkami"
 building_id = ["PL.PZGIK.BDOT10k.BUBDA.18.6325983", "PL.PZGIK.BDOT10k.BUBDA.18.6319873"]
+#lista z wszystkimi budynkami w pliku
 #building_id = [str(line.getValue("gmlId")) for line in arcpy.SearchCursor(file)]
 
-cursor = arcpy.SearchCursor(file)
-#buildings = {}
+" -------------------- ZADANIE EGZAMINACYJNE - WLASCIWY PROGRAM -------------------- "
+"slownik z minimalnymi geometriami"
+min_geom = {"RECTANGLE_BY_AREA": result_path+'RECTANGLE_BY_AREA_line.shp',
+            "RECTANGLE_BY_WIDTH": result_path+'RECTANGLE_BY_WIDTH_line.shp',
+            "CONVEX_HULL": result_path+'CONVEX_HULL_line.shp',
+            "CIRCLE": result_path+'CIRCLE_line.shp',
+            "ENVELOPE": result_path+'ENVELOPE_line.shp'}
+
 "DataFrame na wszystkie wyniki"
 results_all = pd.DataFrame()
 start = 0
+cursor = arcpy.SearchCursor(file)
 for row in cursor:
     buildings = {}
-    "pobranie wartosci z kolumny z identyfiaktorem"
+    "pobranie wartosci z kolumny z identyfiaktorem z pliku BUBD.shp"
     value = str(row.getValue("gmlId"))
     if value in building_id:
         selection = select(file, value)
-        #print(value)
         bldg_id = value.split('.')[-1]
         "zapisanie wierzcholkow budynku do pliku (plik z punktami) o nazwie 'result_ostatni_elem_identyf_gmlId.shp' "
         buildings['bldg_{0}'.format(bldg_id)] = arcpy.FeatureVerticesToPoints_management(selection, result_path+"result_{0}.shp".format(bldg_id))
@@ -145,14 +166,13 @@ for row in cursor:
         for id_bud, vertices_bud in buildings.items():
             "utworzenie DataFrame do zapisu danych o punktach"
             results = pd.DataFrame()
-            start += 1
-            print(start, "- ok")
             cursor = arcpy.da.SearchCursor(vertices_bud, ['FID', 'gmlId', 'SHAPE@XY'])
             "iteracja przez kolejne punkty"
             for row in cursor:
                 point_id = row[0]
-                if point_id == arcpy.GetCount_management(vertices_bud):
-                    next_point = row[0]
+                "dla ostatniego wierzcholka, nastepny wierzcholek to ten z id=0"
+                if point_id == int(arcpy.GetCount_management(vertices_bud).getOutput(0))- 1:
+                    next_point = 0
                 else:
                     next_point = point_id + 1
                 identyfikator_bud = row[1]
@@ -164,21 +184,23 @@ for row in cursor:
                     pd.Series(data=[int(point_id), identyfikator_bud, int(next_point), coordX, coordY], name=row[0],
                               index=['Id_pkt', 'Identyfikator_budynku', 'Nr_kolejnego_wierzcholka', 'X', 'Y']))
 
-            "dolaczenie atrybutow length_in, length_out"
+            "dolaczenie atrybutow length_in, length_out, angle_in"
             length_in_out_angle(results)
             "ponizsza funkcja tworzy liste minimalnych geometrii dla budynku"
-            MBG_dict = minimal_geometry(vertices_bud, id_bud)
-            "iteracja przez slownik - nazwa: klasa_MBG"
-            for name, mbg in MBG_dict.items():
+            minimal_geometry(vertices_bud)
+            "iteracja przez slownik - nazwa: MBG"
+            for name, mbg in min_geom.items():
                 results["Strzalka_{0}".format(name)] = deflection(vertices_bud, mbg)
                 "usuniecie niepotrzebnych juz warstw"
                 arcpy.Delete_management(mbg)
             arcpy.Delete_management(vertices_bud)
 
             results_all = results_all.append(results)
+        "informacja, ze dla danego budynku wykonano obliczenia"
+        start += 1
+        print(start, "- ok")
 
-
-results_all.to_csv("results.csv")
+results_all.to_csv(result_path+"results.csv")
 
 
 
