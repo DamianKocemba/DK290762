@@ -137,9 +137,9 @@ def length_in_out_angle(results):
 " -------------------- LISTA BUDYNKOW -------------------- "
 "lista z gmlId budynku"
 "lista z wybranymi budynkami"
-building_id = ["PL.PZGIK.BDOT10k.BUBDA.18.6325983", "PL.PZGIK.BDOT10k.BUBDA.18.6319873"]
+#building_id = ["PL.PZGIK.BDOT10k.BUBDA.18.6325983", "PL.PZGIK.BDOT10k.BUBDA.18.6319873"]
 #lista z wszystkimi budynkami w pliku
-#building_id = [str(line.getValue("gmlId")) for line in arcpy.SearchCursor(file)]
+building_id = [str(line.getValue("gmlId")) for line in arcpy.SearchCursor(file)]
 
 " -------------------- ZADANIE EGZAMINACYJNE - WLASCIWY PROGRAM -------------------- "
 "slownik z minimalnymi geometriami"
